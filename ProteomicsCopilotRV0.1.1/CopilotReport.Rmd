@@ -1,0 +1,1468 @@
+---
+title: "Project ABC"
+author: "Mario"
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    keep_md: false
+always_allow_html: true
+---
+Proteomics Copilot V0.1.1
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+copilot_wd <- function(){
+  setwd("C:/Users/Jonas Marx/Desktop/Proteomics CopilotR")
+  #Replace the line above with your working directory that includes the Copilot Shiny App.R
+}
+copilot_wd()
+source("functions.R")
+data_wd <- function(){
+  setwd("C:/Users/Jonas Marx/Desktop/Molecular Medicine/Proteomics work/20250602 - Mario Report")
+  #Replace the line above with your working directory that includes the Data folder
+}
+data_wd()
+log_path = "C:/Users/Jonas Marx/Downloads/log_2025-07-21_3.csv"
+log = read_csv(log_path)
+#Replace this line with the place where your log file is stored
+
+logd = setNames(log$Select, log$Var)
+
+prot_bool = FALSE
+pep_bool = FALSE
+phos_bool = FALSE
+
+
+if("Data1" %in% log$Var){
+  data1 = read_data(logd["Data1"])
+  data1 = rename_cols(data1)
+  prot_bool = TRUE
+}
+if("Data2" %in% log$Var){
+  data2 = read_data(logd["Data2"])
+  data2 = rename_cols(data2)
+  pep_bool = TRUE
+}
+if("Data3" %in% log$Var){
+  data3 = read_data(logd["Data3"])
+  phos_bool = TRUE
+}
+if("Meta1" %in% log$Var){
+  meta1 = read_data(logd["Meta1"])
+}
+if("Meta2" %in% log$Var){
+  meta2 = read_data(logd["Meta2"])
+}
+
+if(logd["Transformed"]){
+  log2_data1 = log2_transform_data(data1, meta1)
+} else {
+  log2_data1 = data1
+  data1 = inverseof_log2_transform_data(data1, meta1)
+}
+
+if("FilterNum" %in% log$Var){
+  filtered_log2_data1 = filter_data(log2_data1, meta1, as.numeric(logd["FilterNum"]))
+}
+
+pre_volcano_data1 <- if (exists("filter_log2_data1")) {
+  filter_log2_data1
+} else {
+  log2_data1
+}
+
+if (all(c("Q-shift", "Adj-std", "Seed") %in% log$Var)) {
+  imputed_data1 <- impute_values(
+    data = pre_volcano_data1,
+    meta = meta1,
+    q = as.numeric(logd["Q-shift"]),
+    adj_std = as.numeric(logd["Adj-std"]),
+    ret = 0,
+    seed = as.numeric(logd["Seed"])
+  )
+}
+
+volcano_data1 <- if (exists("imputed_data1")) {
+  imputed_data1
+} else {
+  pre_volcano_data1
+}
+
+#if(logd["Transformed3"]){
+#  log2_data3 = log2_transform_data(data3, meta2)
+#} else {
+#  log2_data3 = data3
+#  data3 = inverseof_log2_transform_data(data3, meta2)
+#}
+
+#if("FilterNum2" %in% log$Var){
+#  log2_data3 = filter_data(log2_data3, meta2, logd["FilterNum2"])
+#}
+
+copilot_wd()
+init_colors(color=logd["Color"])
+
+pep_num = "1"
+
+if (pep_bool) {
+  prot_num = "2"
+} else {
+  prot_num = "1"
+}
+
+if (pep_bool && prot_bool) {
+  phos_num <- "3"
+} else if (prot_bool || pep_bool) {
+  phos_num <- "2"
+} else {
+  phos_num <- "1"
+}
+
+data_wd()
+sample_info = read_sample_info()
+```
+
+```{r, echo=FALSE, results='asis'}
+cat("Log file:", basename(log_path))
+
+if (!is.null(sample_info)) {
+  for (i in seq_len(nrow(sample_info))) {
+    cat("\n\n### ", sample_info$header[i], "\n\n")
+    
+    parts <- strsplit(sample_info$text[i], "\r")[[1]]
+    
+    for (part in parts) {
+      cat(part, "\n")
+    }
+  }
+}
+
+cat("\n\n## Table of Contents")
+if (pep_bool) {
+  cat(paste0("\n### ", pep_num, " Peptide Level Plots"))
+  cat(paste0("\n#### ", pep_num, ".1 Coverage Plot"))
+  cat(paste0("\n#### ", pep_num, ".2 Missing Value Plot"))
+  cat(paste0("\n#### ", pep_num, ".3 Retention Time Plot"))
+  cat(paste0("\n#### ", pep_num, ".4 Modification Plot"))
+  cat(paste0("\n#### ", pep_num, ".5 Missed Cleavage Plot"))
+}
+if (prot_bool) {
+  cat(paste0("\n### ", prot_num, " Protein Level Plots"))
+  cat(paste0("\n#### ", prot_num, ".1 Coverage Plot"))
+  cat(paste0("\n#### ", prot_num, ".2 Missing Values Plot"))
+  cat(paste0("\n#### ", prot_num, ".3 Histogram Intensity"))
+  cat(paste0("\n#### ", prot_num, ".4 Boxplot Intensity"))
+  cat(paste0("\n#### ", prot_num, ".5 Coefficent of Variation Plot"))
+  cat(paste0("\n#### ", prot_num, ".6 PCA Plot"))
+  cat(paste0("\n#### ", prot_num, ".7 Abundance Plot"))
+  cat(paste0("\n#### ", prot_num, ".8 Correlation Plot"))
+  filtered_log <- log[log$Var == "VolcPlot", ]
+  num_plotsVolc <- nrow(filtered_log)
+  if (num_plotsVolc>0){
+    cat(paste0("\n#### ", prot_num, ".9 Volcano Plot"))
+  }
+}
+if (phos_bool) {
+  cat(paste0("\n### ", phos_num, " Phosphosite Level Plots"))
+  cat(paste0("\n#### ", phos_num, ".1 Overview Phosphosites"))
+  cat(paste0("\n#### ", phos_num, ".2 Coverage Plot"))
+  cat(paste0("\n#### ", phos_num, ".3 Coverage Plot"))
+  cat(paste0("\n#### ", phos_num, ".4 Missed Value Plot"))
+  cat(paste0("\n#### ", phos_num, ".5 Histogram Intensity"))
+  cat(paste0("\n#### ", phos_num, ".6 Boxplot Intensity"))
+  cat(paste0("\n#### ", phos_num, ".7 Coefficent of Variation Plot"))
+  cat(paste0("\n#### ", phos_num, ".8 PCA Plot"))
+  cat(paste0("\n#### ", phos_num, ".9 Abundance Plot"))
+  cat(paste0("\n#### ", phos_num, ".10 Correlation Plot"))
+  filtered_log <- log[log$Var == "PhosVolcPlot", ]
+  num_plotsPhosVolc <- nrow(filtered_log)
+  if (num_plotsPhosVolc>0){
+    cat(paste0("\n#### ", phos_num, ".11 Volcano Plot"))
+  }
+}
+cat("\n")
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat(paste0("## ", pep_num, " Peptide Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat(paste0("## ", pep_num, ".1 Coverage Plot - Peptide Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Numbers of peptide Identifications across all samples is a measure of non-missing measurements by replicate. Protein inference, identification and quantification is based on reproducible peptide identification and the peptide's ion intensity.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Low peptide counts in a sample / run may suggest a systematic flaw in the experiment (e.g. low protein input material, protein to peptide processing errors, technical propblems during LC-MS data acquisition.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Ideally, numbers of peptide identifications in all samples are high and of similar count.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text3upPeptide" %in% log$Var){
+    cat(logd["text3upPeptide"])
+  }
+}
+```
+
+```{r Coverage Plot - Peptide Level, message=FALSE, echo=FALSE}
+if (pep_bool) {
+  coverage_plot_pep(data2=data2,meta=meta1,id=ctl(logd["CoveragePlotID"]),header=ctl(logd["CoveragePlotHeader"]),legend=ctl(logd["CoveragePlotLegend"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text3downPeptide" %in% log$Var){
+    cat(logd["text3downPeptide"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat(paste0("## ", pep_num, ".2 Missing Value Plot - Peptide Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("A high frequency of zero missing peptides indicates reproducible identifications of given peptides in all samples, a prerequisite for protein quantification.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text4upPeptide" %in% log$Var){
+    cat(logd["text4upPeptide"])
+  }
+}
+```
+
+```{r Missing Value Plot - Peptide Level, message=FALSE, echo=FALSE}
+if (pep_bool) {
+  bin4 <- logd["MissingValuePlotBin"]
+  bin4 <- if (tolower(bin4) == "false") {
+  0
+} else if (tolower(bin4) == "true") {
+  1
+} else {
+  suppressWarnings(as.numeric(bin4))
+}
+  missing_value_plot_pep(data2=data2,meta=meta1,bin=bin4, header=ctl(logd["MissingValuePlotHeader"]), text=ctl(logd["MissingValueText"]), text_size=as.numeric(logd["MissingValueTextSize"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text4upPeptide" %in% log$Var){
+    cat(logd["text4upPeptide"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat(paste0("## ", pep_num, ".3 Retention Time Plot - Peptide Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("During LC-MS analysis complex peptide mixtures of a given sample are seperated via reversed-phase liquid chromatography (LC). The requirement for reproducible protein identification and quantification is the reproducible separation of peptides over the entire gradient length utilized for analysis in all samples of the data set.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Ideally, retention times do allign over the entire gradient length. Significant deviations from this pattern indicate technical problems during liquid chromatography.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text14up" %in% log$Var){
+    cat(logd["text14up"])
+  }
+}
+```
+
+```{r Retention Time Plot, message=FALSE, echo=FALSE}
+if (pep_bool) {
+  bin14 <- logd["HexbinsRT"]
+  bin14 <- if (tolower(bin14) == "false") {
+  0
+} else if (tolower(bin14) == "true") {
+  1
+} else {
+  suppressWarnings(as.numeric(bin14))
+}
+  RTvspredRT_plot(data2=data2, meta=meta1, method=logd["RTPlotSytle"], add_line=ctl(logd["RTline"]), bins = bin14, header=ctl(logd["RTHeader"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text14down" %in% log$Var){
+    cat(logd["text14down"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat(paste0("## ", pep_num, ".4 Modification Plot - Peptide Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Amino acid modifications can occur via post-translational modifications in the investigated biological system / condition, during sample storage or protein to peptide processing for LC-MS analysis.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Typically, only expected amino acid modifications will be taken into account to be present in the data set.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text15up" %in% log$Var){
+    cat(logd["text15up"])
+  }
+}
+```
+
+```{r Modification Plot, message=FALSE, echo=FALSE}
+if (pep_bool) {
+  modification_plot(data2=data2, meta=meta1, id=ctl(logd["ModPlotID"]), header=ctl(logd["ModPlotHeader"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text15down" %in% log$Var){
+    cat(logd["text15down"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat(paste0("## ", pep_num, ".5 Missed Cleavage Plot - Peptide Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  cat("Sample processing methods in proteomic bottom-up experiments include a protelytic digestion step for peptide generation. Missed cleavages of a given protease can occur, nevertheless the frequency of missed cleavages should be low and comparable in all samples.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text16up" %in% log$Var){
+    cat(logd["text16up"])
+  }
+}
+```
+
+```{r Missed Cleavage Plot, message=FALSE, echo=FALSE}
+if (pep_bool) {
+  missed_cl_plot(data2=data2, meta=meta1, id=ctl(logd["MissedCleavID"]), text=ctl(logd["MissedCleavText"]), text_size=as.numeric(logd["MissedCleavTextSize"]), ctl(logd["MissedCleavHeader"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (pep_bool) {
+  if ("text16down" %in% log$Var){
+    cat(logd["text16down"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, " Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".1 Coverage Plot - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Identification of proteins is a measure of the number of non missing measurements by replicate.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Low protein counts in a sample / run may suggest a systematic flaw in the experiment that needs to be addressed prior to further interpretation of the results and statistical analysis.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Ideally, numbers of protein identifications in all samples of the data set are high and in a similar range.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text3upProtein" %in% log$Var){
+    cat(logd["text3upProtein"])
+  }
+}
+```
+
+```{r Coverage Plot - Protein Level, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  coverage_plot(data=data1, meta=meta1, id=ctl(logd["CoveragePlotID"]), color_package = TRUE, header=ctl(logd["CoveragePlotHeader"]), legend=ctl(logd["CoveragePlotLegend"])) 
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text3downProtein" %in% log$Var){
+    cat(logd["text3downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".2 Missing Values Plot - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Missing values on protein level may depend on the experimental set-up, experimental conditions or on technical flaws.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("For technical replicates a very low level of missing values can be expected.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text4upProtein" %in% log$Var){
+    cat(logd["text4upProtein"])
+  }
+}
+```
+
+```{r Missing Values Plot - Protein Level, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  bin4 <- logd["MissingValuePlotBin"]
+  bin4 <- if (tolower(bin4) == "false") {
+  0
+} else if (tolower(bin4) == "true") {
+  1
+} else {
+  suppressWarnings(as.numeric(bin4))
+}
+  missing_value_plot(data=data1, meta=meta1, bin=bin4, header=ctl(logd["MissingValuePlotHeader"]), text=ctl(logd["MissingValueText"]), text_size=as.numeric(logd["MissingValueTextSize"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text4downProtein" %in% log$Var){
+    cat(logd["text4downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".3 Histogram Intensity - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The distribution of log2 transformed means of quantitative protein values for each experimental group are plotted in the next graph.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("In a healthy experiment the distributions of protein quantitative mean values of all groups are similar.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text5upProtein" %in% log$Var){
+    cat(logd["text5upProtein"])
+  }
+}
+```
+
+```{r Histogram Intensity Plot, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  histo_int(data=log2_data1, meta=meta1, color_package = TRUE, header=ctl(logd["HistogramIntHeader"]), legend=ctl(logd["HistogramIntLegend"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text5downProtein" %in% log$Var){
+    cat(logd["text5downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".4 Boxplot Intensity - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Depicted are the measured log2 raw protein intensities in a boxplot of each sample.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Missing values are not considered when creating the boxplot. Zero intensities are considered as missing values.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("For a healthy experiment we expect similar log2 intensity distributions in all samples.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Significant deviations indicate unequal peptide loading during LC-MS or unequal protein amounts in the starting material.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text6upProtein" %in% log$Var){
+    cat(logd["text6upProtein"])
+  }
+}
+```
+
+```{r Boxplot intensity, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  if(ctl(logd["BoxplotIntMean"])){
+    boxplot_int(log2_data1, meta1, outliers = ctl(logd["BoxplotIntOut"]), header=ctl(logd["BoxplotIntHeader"]), legend=ctl(logd["BoxplotIntLegend"]), color_package = TRUE)
+  } else {
+  boxplot_int_single(log2_data1, meta1, outliers = ctl(logd["BoxplotIntOut"]), id=ctl(logd["BoxplotIntID"]), header=ctl(logd["BoxplotIntHeader"]),legend=ctl(logd["BoxplotIntLegend"]), color_package = TRUE)
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text6downProtein" %in% log$Var){
+    cat(logd["text6downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".5 Coefficent of Variation Plot - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The CV or relative Standard Deviation is calculated by the ratio of the standard deviation to the mean (on quantitative protein level). It is used to measure the precision of a measure, in this case protein intensity.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The plot below shows the distribution of the CVs by experimental conditions (groups) in boxplots where each CV is calculated by protein and by experimental condition. The CV is displayed as %CV, which is the percentage of the mean represented by the standard deviation.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("For a healthy experiment we expect: The distribution of the CVs across conditions to be mostly overlapping, e.g. similar modes. The modes of the CVs not to be too high, ideally not above 50%, for best results not above 25%. If the distributions show worringly large %CV, this could affect the quality of the differential expression analysis in the statistics section, e.g. due to high variance in the data set.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text7upProtein" %in% log$Var){
+    cat(logd["text7upProtein"])
+  }
+}
+```
+
+```{r Coefficent of Variation Plot, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  cov_plot(data=data1, meta=meta1, outliers=ctl(logd["CovPlotOut"]), color_package=TRUE, header=ctl(logd["CovPlotHeader"]), legend=ctl(logd["CovPlotLegend"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text7downProtein" %in% log$Var){
+    cat(logd["text7downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".6 PCA Plot - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The Principal Component Analysis (PCA) plot is used to visualise differences between samples that are induced by their intensity profiles. PCA transforms high-dimensional data, like thousands of measured proteins or peptides intensities, into a reduced set of dimensions. The first two dimensions explain the greatest variability between the samples and they are a useful visual tool to confirm known clustering of the samples or to identify potential problems in the data.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("For a healthy experiment we expect:
+1. Technical replicates to cluster tightly together. 2. Biological replicates to cluster more than non replicates. 3. Clustering of the condition of interest should be visible.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("If unexpected clusters occur or replicates don’t cluster together it can be due to high individual variability, or extra variability introduced by factors such as technical processing, other unexplored biological differences, unintentional sample swaps etc.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The interpretation and trust in the the differential expression results should take these consideration into a account. If you think that the samples in the experiment show largely unexpected patterns, it is advisable to request support from an data analyst.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text8upProtein" %in% log$Var){
+    cat(logd["text8upProtein"])
+  }
+}
+```
+
+```{r PCA Plot, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  pca_plot(data=data1, meta=meta1, color_package=TRUE, header=ctl(logd["PCAHeader"]), legend=ctl(logd["PCALegend"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text8downProtein" %in% log$Var){
+    cat(logd["text8downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".7 Abundance Plot - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The rank plot of mean protein intensities (log10) within experimental conditions / groups illustrates the coverage of the dynamic ranges of protein intensities within the experimental conditions / groups in the data set.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("For a healthy experiment we expect high similarity between the curves.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("If the curves look worringly different it could affect the quality of the differential expression analysis in the statistics section.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("The vast dynamic range of plasma or serum, estimated at 12-13 order of magnitude, renders plasma proteome analysis based on mass spectrometry extremely challenging, as the high abundant plasma proteins hinder the identification of low abundant proteins.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text9upProtein" %in% log$Var){
+    cat(logd["text9upProtein"])
+  }
+}
+```
+
+```{r Abundance Plot, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  abundance_plot(data=data1, meta=meta1)
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text9downProtein" %in% log$Var){
+    cat(logd["text9downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat(paste0("## ", prot_num, ".8 Correlation Plot - Protein Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Hierarchical clustering was used to order the samples in the matrix.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("For a healthy experiment we expect: technical replicates have high correlations (1 = 100% identical), biological replicates (samples of the same group) to have higher correlations than non replicates.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  cat("Low correlation between samples may indicate many missing values in a given sample or in one of the whole groups, or can be related to normalization errors (check with plot (Distribution of protein intensity values in each sample)) due to unequal peptide amount loading.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text12upProtein" %in% log$Var){
+    cat(logd["text12upProtein"])
+  }
+}
+```
+
+```{r Correlation Plot, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  corr_plot(data=data1, meta=meta1, method=ctl(logd["CorrPlotDisplay"]), id=ctl(logd["CorrPlotID"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if ("text12downProtein" %in% log$Var){
+    cat(logd["text12downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (FALSE) {
+  cat("## Heatmap - Protein Level")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (FALSE) {
+  cat("Hierarchical clustering is a method of cluster analysis in data mining that creates a hierarchical representation of the clusters in a data set. The result is a tree-like structure called a dendogram, which illustrates the hierarchical relationships among the clusters.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (FALSE) {
+  if ("text13upProtein" %in% log$Var){
+    cat(logd["text13upProtein"])
+  }
+}
+```
+
+```{r Heatmap, message=FALSE, echo=FALSE}
+if (FALSE) {
+  heatmap_plot(data1, meta1, id=ctl(logd["HeatmapID"]))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (FALSE) {
+  if ("text13downProtein" %in% log$Var){
+    cat(logd["text13downProtein"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  filtered_log <- log[log$Var == "VolcPlot", ]
+  num_plotsVolc <- nrow(filtered_log)
+  if (num_plotsVolc>0){
+    cat(paste0("## ", prot_num, ".9 Volcano Plot - Protein Level"))
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    cat("The occurence of differential abundant proteins was tested by comparisons between two conditions (t-test). Multiple hypothesis testing was done by Benjamini-Hochberg adjustment of p-values and the false discovery rate was set to 0.05 (q-value < 0.05).")
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    cat(paste0("The data set was filtered for proteins with at least ",logd["FilterNum"]," valid values (not missing and not quantity = 0, 50% valid values) ",logd["FilterCond"],"."))
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    cat("Differential abundant proteins are defiend as those proteins with an adjusted p-value < 0.05 and a fold change of >2.")
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    cat("The results are illustrated as volcano plots (the y-axis indicates the negative logarithm of the adjusted p-value and the x-axis indicates the log(2) fold change; dotted lines indicate the thresholds for significance: q-value < 0.05 and FC > 2.")
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    if ("text10upProtein" %in% log$Var){
+      cat(logd["text10upProtein"])
+    }
+  }
+}
+```
+
+```{r Volcano Plot, message=FALSE, echo=FALSE}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    plot_list <- list()
+    l <- htmltools::tagList()
+    
+    for (i in 1:num_plotsVolc) {
+      plot_input <- filtered_log$Select[i]
+      plot_input <- strsplit(plot_input, "ඞ")[[1]]
+      
+      l[[i]] <- tagList(HTML(markdown::mark(text=paste0("\n\n#### ", i, ")", "\n"))), volcano_plot(volcano_data1, meta1, plot_input[1], plot_input[2], as.numeric(plot_input[3]), as.numeric(plot_input[4]), uncorrected = ctl(plot_input[5])))
+    }
+  }
+}
+```
+
+```{r results='asis', message=FALSE, echo=FALSE}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    if (num_plotsVolc>0){ 
+      l
+    }
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (prot_bool) {
+  if (num_plotsVolc>0){
+    if ("text10downProtein" %in% log$Var){
+      cat(logd["text10downProtein"])
+    }
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+imputed_add = F
+if (imputed_add) {
+  cat("## Volcano Plot - with imputed values")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (imputed_add) {
+  cat("Imputation was done using a shifted normal distribution with the 1% quantile of the original data as the mean and 30% of the standard deviation of the original data.")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (imputed_add) {
+  imp_data = read_data("C:/Users/Jonas Marx/Desktop/Molecular Medicine/Proteomics work/20241218 - Florian, Godfrey data/imputed_data-2024-12-18.csv")
+  volcano_plot(imp_data, meta1, "R01", "R02")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (imputed_add) {
+  imp_data = read_data("C:/Users/Jonas Marx/Desktop/Molecular Medicine/Proteomics work/20241218 - Florian, Godfrey data/imputed_data-2024-12-18.csv")
+  volcano_plot(imp_data, meta1, "R02", "R04")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, " Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".1 Overview Phosphosites"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text19up" %in% log$Var){
+    cat(logd["text19up"])
+  }
+}
+```
+
+```{r Overview Phosphosites, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  simple_phos_site_plot(data3)
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text19down" %in% log$Var){
+    cat(logd["text19down"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".2 Coverage Plot - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text3upPhosphosite" %in% log$Var){
+    cat(logd["text3upPhosphosite"])
+  }
+}
+```
+
+```{r Coverage Plot - Phospho Level, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  coverage_plot(data3, meta2, logd["CoveragePlotID"])
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text3downPhosphosite" %in% log$Var){
+    cat(logd["text3downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".3 Coverage Plot - Phosphosite Quality"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text999upPhosphosite" %in% log$Var){
+    cat(logd["text999upPhosphosite"])
+  }
+}
+```
+
+```{r Coverage Plot - Phospho Quality, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  phossite_coverage_plot(data3, meta2, logd["CoveragePlotID"])
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text999downPhosphosite" %in% log$Var){
+    cat(logd["text999downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".4 Missing Value Plot - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text4upPhosphosite" %in% log$Var){
+    cat(logd["text4upPhosphosite"])
+  }
+}
+```
+
+```{r Missing Values Plot - Phospho Level, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  missing_value_plot(data3, meta2)
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text4downPhosphosite" %in% log$Var){
+    cat(logd["text4downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".5 Histogram Intensity - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text5upPhosphosite" %in% log$Var){
+    cat(logd["text5upPhosphosite"])
+  }
+}
+```
+
+```{r Histogram Intensity Plot - Phospho, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  histo_int(log2_data3, meta2)
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text5downPhosphosite" %in% log$Var){
+    cat(logd["text5downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".6 Boxplot Intensity - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text6upPhosphosite" %in% log$Var){
+    cat(logd["text6upPhosphosite"])
+  }
+}
+```
+
+```{r Boxplot intensity - Phospho, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  if(logd["BoxplotIntMean"]){
+    boxplot_int(log2_data3, meta2, outliers = logd["BoxplotIntOut"])
+  } else {
+  boxplot_int_single(log2_data3, meta2, outliers = logd["BoxplotIntOut"], id=logd["BoxplotIntID"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text6downPhosphosite" %in% log$Var){
+    cat(logd["text6downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".7 Coefficent of Variation Plot - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text7upPhosphosite" %in% log$Var){
+    cat(logd["text7upPhosphosite"])
+  }
+}
+```
+
+```{r Coefficent of Variation Plot - Phospho, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  cov_plot(data3, meta2, outliers = logd["CovPlotOut"])
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text7downPhosphosite" %in% log$Var){
+    cat(logd["text7downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".8 PCA Plot - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text8upPhosphosite" %in% log$Var){
+    cat(logd["text8upPhosphosite"])
+  }
+}
+```
+
+```{r PCA Plot - Phospho Level, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  pca_plot(data3, meta2)
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text8downPhosphosite" %in% log$Var){
+    cat(logd["text8downPhosphosite"])
+  }
+}
+```
+
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".9 Abundance Plot - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text9upPhospho" %in% log$Var){
+    cat(logd["text9upPhosphosite"])
+  }
+}
+```
+
+```{r Abundance Plot - Phospho, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  abundance_plot(data3, meta2, workflow = "Phosphosite")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text9downPhospho" %in% log$Var){
+    cat(logd["text9downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat(paste0("## ", phos_num, ".10 Correlation Plot - Phosphosite Level"))
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text12upPhosphosite" %in% log$Var){
+    cat(logd["text12upPhosphosite"])
+  }
+}
+```
+
+```{r Correlation Plot - Phospho, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  corr_plot(data3, meta2, method = logd["CorrPlotDisplay"], id =logd["CorrPlotID"])
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if ("text12downPhosphosite" %in% log$Var){
+    cat(logd["text12downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (F) {
+  cat("## Heatmap - Phosphosite Level")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (F) {
+  cat("Write something about this plot...")
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (F) {
+  if ("text13upPhosphosite" %in% log$Var){
+    cat(logd["text13upPhosphosite"])
+  }
+}
+```
+
+```{r Heatmap - Phospho, message=FALSE, echo=FALSE}
+if (F) {
+  heatmap_plot(data3, meta2, id=logd["HeatmapID"])
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (F) {
+  if ("text13downPhosphosite" %in% log$Var){
+    cat(logd["text13downPhosphosite"])
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  filtered_log <- log[log$Var == "PhosVolcPlot", ]
+  num_plotsPhosVolc <- nrow(filtered_log)
+  if (num_plotsPhosVolc>0){
+    cat(paste0("## ", phos_num, ".11 Volcano Plot - Phosphosite Level"))
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if (num_plotsPhosVolc>0){
+    cat("Write something about this plot...")
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if (num_plotsPhosVolc>0){
+    if ("text10upPhosphosite" %in% log$Var){
+      cat(logd["text10upPhosphosite"])
+    }
+  }
+}
+```
+
+```{r Volcano Plot - Phospho, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  if (num_plotsPhosVolc>0){
+    plot_list <- list()
+    l <- htmltools::tagList()
+    
+    for (i in 1:num_plotsPhosVolc) {
+      plot_input <- filtered_log$Select[i]
+      plot_input <- strsplit(plot_input, "ඞ")[[1]]
+      
+      l[[i]] <- tagList(HTML(markdown::mark(text=paste0("\n\n#### ", i, ")", "\n"))), volcano_plot(log2_data3, meta2, plot_input[1], plot_input[2], as.numeric(plot_input[3]), as.numeric(plot_input[4]), workflow = "Phosphosite"))
+    }
+  }
+}
+```
+
+```{r results='asis', message=FALSE, echo=FALSE}
+if (phos_bool) {
+  if (num_plotsPhosVolc>0){
+    l
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if (num_plotsPhosVolc>0){
+    if ("text10downPhosphosite" %in% log$Var){
+      cat(logd["text10downPhosphosite"])
+    }
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  filtered_log <- log[log$Var == "KSEA_data", ]
+  num_plotsKSEAVolc <- nrow(filtered_log)
+  if (num_plotsKSEAVolc>0){
+    cat("## KSEA Volcano")
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (phos_bool) {
+  if (num_plotsKSEAVolc>0){
+    cat("Write something about this plot...")
+  }
+}
+```
+
+```{r KSEA Volcano, message=FALSE, echo=FALSE}
+if (phos_bool) {
+  if (num_plotsKSEAVolc>0){
+    plot_list <- list()
+    l <- htmltools::tagList()
+    
+    for (i in 1:num_plotsKSEAVolc) {
+      plot_input <- filtered_log$Select[i]
+      data_wd()
+      KSEA_data = read.delim(plot_input, sep = "\t")
+      
+      l[[i]] <- tagList(HTML(markdown::mark(text=paste0("\n\n#### ", i, ")", "\n"))), kinase_volcano(KSEA_data))
+    }
+  }
+}
+```
+
+```{r results='asis', message=FALSE, echo=FALSE}
+if (phos_bool) {
+  if (num_plotsKSEAVolc>0){
+    l
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (FALSE) {
+  filtered_log <- log[log$Var == "tree_path", ]
+  num_plotsTREE <- nrow(filtered_log)
+  if (num_plotsTREE>0){
+    cat("## Kinase Tree")
+  }
+}
+```
+
+```{r, echo=FALSE, results='asis'}
+if (FALSE) {
+  if (num_plotsTREE>0){
+    cat("Write something about this plot...")
+  }
+}
+```
+
+```{r, echo=FALSE, out.width='100%', fig.align='center'}
+#data_wd()
+#knitr::include_graphics("CORAL.tree.svg")
+#knitr::include_graphics("CORAL.treeALSOTHROW.svg")
+  
+#if (phos_bool) {
+ # if (num_plotsTREE>0){
+  #  for (i in 1:num_plotsTREE) {
+   #   plot_input <- filtered_log$Select[i]
+    #  data_wd()
+     # knitr::include_graphics(plot_input)
+    #}
+  #}
+#}
+```

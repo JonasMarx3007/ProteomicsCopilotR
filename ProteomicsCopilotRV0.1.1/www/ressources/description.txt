@@ -1,0 +1,42 @@
+@Project Nummer:@
+CFMS000032
+
+@Sample Material:@
+Lyophylized cells in 15 ml tubes; 16 samples
+
+@Sample Processing:@
+Lysed with varying volumes (40-100 µl, according to estimated cell numbers) of 4% SDC in 100 mM Tris/HCl pH=8.5;
+Boiled for 10 min at 95°C in 15 ml tubes;
+Transfer in Dyanode ultrasonication PP-tubes;
+Sonication: standard 10 cycles 30 sec on / 30 sec off;
+Protein concentrations determined by BCA, all in suitable range (0.52 - 1.2 µg/µl);
+10 µg each reduced with TCEP and alkylated with CAM;
+Reduced and alkylated samples subjected to SP3 standard proteocol protein enrichment;
+Digest with Trp/LysC at 1:50 in 50 mM ABC buffer overnight;
+Acifified with 1% TFA;
+Peptide clean-up with C18-StageTips;
+Peptide concentrations and ratios determined by A280 measurement (Nanodrop), ranges and ratios all suitable for measurements;
+Diluted to 200 ng/ µl with MS load buffer and 1µ used for injections
+
+@Exceptional Events:@
+Sample_07 (=74067_W-VB3) showed a huge contamination with polymer peaks (suspected to have plastic particles inside), as a result only few peptide/protein identifications were recorded;
+Processing of sample_07 was redone and remeasured (raw-file indicated with ...ReDo...);
+Protein identifications in sample_07 repeat was comparable to the other samples, no polymer peaks dtected in remeasurement
+
+@LC-MS/MS Analysis:@
+Reverse-phase liquid chromatography (Bruker nanoElute) coupled to Bruker timsTOF HT, operated in DIA-PASEF mode;
+Gradient length: 60 min., mobile phases water/0.1% FA and ACN/0.1% FA;
+Column: 15 cm C18 in-house packed;
+Acquisition method: DIA, standard PASEF windows for 1h gradient
+
+@Processing Software:@
+DIANN (Version_1.8)
+16 raw-files (including sample_07 remeasurement);
+Paramters: default parameters (FDR(%)=1.0; static modification: Cys-CAM; dynamic modification: Met-Ox; match-between-runs (MBR) set to NO; allowed two missed cleavages; FASTA = mus-musculus_uniprotkb_proteome_UP000000589_2024_07_31_C57Bl6J, from 07-2024 
+ 
+ 
+ 
+ 
+ 
+Altogether 10,576 protein groups were identified in the data set
+
