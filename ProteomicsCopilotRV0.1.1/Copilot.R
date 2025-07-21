@@ -31,23 +31,8 @@ for (pkg in bioc_pkgs) {
 }
 
 library(shiny)
-
-if (interactive() && is.null(getOption("copilot_app_started"))) {
-  options(copilot_app_started = TRUE)
-  if (requireNamespace("rstudioapi", quietly = TRUE) && rstudioapi::isAvailable()) {
-    setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
-  } else {
-    this_file <- commandArgs(trailingOnly = FALSE)
-    this_file <- sub("--file=", "", this_file[grep("--file=", this_file)])
-    if (length(this_file) > 0) {
-      setwd(dirname(this_file))
-    } else {
-      message("Cannot automatically set working directory. Please set it manually.")
-    }
-  }
-  
-  runApp()
-}
+setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+runApp()
 
 #setwd("C:/Users/jonas/OneDrive/Desktop/Vis_phos/Copilot Shiny2")
 #shinylive::export(appdir = "web app", destdir = "docs")
