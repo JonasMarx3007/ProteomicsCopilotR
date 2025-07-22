@@ -1,3 +1,4 @@
+#V0.1.1
 all_pkgs <- c(
   "shiny", "readr", "readxl", "dplyr", "reshape2", "ggplot2",
   "stringr", "plotly", "tidyverse", "gprofiler2", "corrplot",
@@ -31,7 +32,7 @@ for (pkg in bioc_pkgs) {
 
 library(shiny)
 
-get_copilot_path <- function() {
+get_current_script_path <- function() {
   tryCatch({
     normalizePath(attr(attr(parent.frame(), "srcref"), "srcfile")$filename)
   }, error = function(e1) {
@@ -39,25 +40,18 @@ get_copilot_path <- function() {
       normalizePath(rstudioapi::getSourceEditorContext()$path)
     }, error = function(e2) {
       tryCatch({
-        script_args <- commandArgs(trailingOnly = FALSE)
-        script_file <- sub("--file=", "", script_args[grep("--file=", script_args)])
-        normalizePath(script_file)
+        args <- commandArgs(trailingOnly = FALSE)
+        file_arg <- grep("^--file=", args, value = TRUE)
+        if (length(file_arg) > 0) {
+          normalizePath(sub("^--file=", "", file_arg))
+        } else {
+          stop("Cannot determine the path of the running script")
+        }
       }, error = function(e3) {
-        stop("Could not determine path to Copilot.R")
+        stop("Cannot determine the path of the running script")
       })
     })
   })
 }
 
-copilot_path <- get_copilot_path()
-app_dir <- dirname(copilot_path)
-cat("Copilot path:\n", copilot_path, "\n")
-cat("App directory contents:\n")
-print(list.files(app_dir))
-
-if (!file.exists(file.path(app_dir, "app.R"))) {
-  stop("No app.R found in the same folder as Copilot.R")
-}
-
-setwd(app_dir)
-shiny::runApp(app_dir)
+cat("Current script path:\n", get_current_script_path(), "\n")
