@@ -21,9 +21,9 @@ setwd(local_path)
 all_files <- list.files(path = ".", pattern = "Copilot\\.R$", recursive = TRUE)
 
 if (length(all_files) == 0) {
-  stop("Datei 'Copilot.R' wurde im Repository nicht gefunden.")
+  stop("No 'Copilot.R' found!")
 } else if (length(all_files) > 1) {
-  warning("Mehrere Dateien namens 'Copilot.R' gefunden. Nimm die erste.")
+  warning("More than one 'Copilot.R' found!")
 }
 
 copilot_path <- all_files[1]
