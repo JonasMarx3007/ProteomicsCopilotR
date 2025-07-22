@@ -1,7 +1,7 @@
 library(git2r)
 
 repo_url <- "https://github.com/JonasMarx3007/ProteomicsCopilotR.git"
-local_path <- "your_path"
+local_path <- "C:/Users/Jonas Marx/Desktop/UnnamedProjects/NewCopilotInstall"
 temp_path <- tempfile("copilot_")
 
 extract_version_parts <- function(name) {
@@ -29,6 +29,30 @@ write_log_counter <- function(path, value) {
   writeLines(as.character(value), log_path)
 }
 
+safe_delete <- function(path) {
+  try({
+    for (i in 1:5) {
+      unlink(path, recursive = TRUE, force = TRUE)
+      Sys.sleep(1)
+      if (!dir.exists(path)) break
+    }
+  }, silent = TRUE)
+  if (dir.exists(path)) stop("Could not delete locked folder: ", path)
+}
+
+install_new_version <- function(remote_version_folder, local_counter) {
+  if (startsWith(normalizePath(getwd(), winslash = "/"), normalizePath(local_path, winslash = "/"))) {
+    setwd(dirname(local_path))
+  }
+  if (dir.exists(local_path)) safe_delete(local_path)
+  message("Installing new version...")
+  clone(repo_url, local_path)
+  if (!is.null(local_counter)) {
+    write_log_counter(file.path(local_path, remote_version_folder), local_counter)
+    message("Reinserted logcounter value into new installation: ", local_counter)
+  }
+}
+
 local_version_folder <- NULL
 local_counter <- NULL
 
@@ -49,65 +73,30 @@ clone(repo_url, temp_path, progress = FALSE)
 remote_version_folder <- get_version_folder(temp_path)
 message("Remote version folder detected: ", remote_version_folder)
 
-safe_delete <- function(path) {
-  try({
-    for (i in 1:5) {
-      unlink(path, recursive = TRUE, force = TRUE)
-      Sys.sleep(1)
-      if (!dir.exists(path)) break
-    }
-  }, silent = TRUE)
-  if (dir.exists(path)) {
-    stop("Could not delete locked folder: ", path)
-  }
-}
-
-install_new_version <- function() {
-  if (startsWith(normalizePath(getwd(), winslash = "/"), normalizePath(local_path, winslash = "/"))) {
-    setwd(dirname(local_path))
-  }
-  if (dir.exists(local_path)) {
-    safe_delete(local_path)
-  }
-  message("Installing new version...")
-  clone(repo_url, local_path)
-  if (!is.null(local_counter)) {
-    write_log_counter(file.path(local_path, remote_version_folder), local_counter)
-    message("Reinserted logcounter value into new installation: ", local_counter)
-  }
-}
-
 if (is.null(local_version_folder)) {
-  install_new_version()
+  install_new_version(remote_version_folder, local_counter)
 } else {
   local_ver <- extract_version_parts(local_version_folder)
   remote_ver <- extract_version_parts(remote_version_folder)
   if (!identical(local_ver, remote_ver)) {
     if (!all(local_ver[1:2] == remote_ver[1:2])) {
-      prompt <- readline("A major or minor update is available. Install? (y/n): ")
+      prompt <- readline("A major or minor update is available. Reinstall? (y/n): ")
       if (tolower(prompt) == "y") {
-        install_new_version()
+        install_new_version(remote_version_folder, local_counter)
+      } else {
+        message("Skipped reinstallation. Using existing version.")
       }
     } else {
-      message("Patch version difference detected. Pulling latest changes...")
-      repo <- repository(local_path)
-      fetch(repo, name = "origin")
-      current_branch <- repository_head(repo)$name
-      merge(repo, paste0("origin/", current_branch))
-      message("Pulled latest changes.")
+      message("Patch version difference detected. Reinstalling to update patch...")
+      install_new_version(remote_version_folder, local_counter)
     }
   } else {
-    message("Versions match. Pulling to ensure latest sync...")
-    repo <- repository(local_path)
-    fetch(repo, name = "origin")
-    current_branch <- repository_head(repo)$name
-    merge(repo, paste0("origin/", current_branch))
-    message("Pulled latest changes.")
+    message("Versions match. Reinstalling anyway to ensure sync...")
+    install_new_version(remote_version_folder, local_counter)
   }
 }
 
 setwd(local_path)
-
 all_files <- list.files(path = ".", pattern = "Copilot\\.R$", recursive = TRUE)
 
 if (length(all_files) == 0) {
@@ -118,6 +107,6 @@ if (length(all_files) == 0) {
 
 copilot_path <- all_files[1]
 full_path <- normalizePath(copilot_path, winslash = "/")
-message("Sourcing Copilot.R von: ", full_path)
+message("Sourcing Copilot.R from: ", full_path)
 safe_delete(temp_path)
 source(copilot_path)
