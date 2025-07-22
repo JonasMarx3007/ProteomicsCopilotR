@@ -1,4 +1,3 @@
-#V0.1.1
 all_pkgs <- c(
   "shiny", "readr", "readxl", "dplyr", "reshape2", "ggplot2",
   "stringr", "plotly", "tidyverse", "gprofiler2", "corrplot",
@@ -32,13 +31,26 @@ for (pkg in bioc_pkgs) {
 
 library(shiny)
 
-copilot_path <- tryCatch(
-  normalizePath(sys.frame(1)$ofile),
-  error = function(e) normalizePath(rstudioapi::getSourceEditorContext()$path)
-)
+get_copilot_path <- function() {
+  tryCatch({
+    normalizePath(attr(attr(parent.frame(), "srcref"), "srcfile")$filename)
+  }, error = function(e1) {
+    tryCatch({
+      normalizePath(rstudioapi::getSourceEditorContext()$path)
+    }, error = function(e2) {
+      tryCatch({
+        script_args <- commandArgs(trailingOnly = FALSE)
+        script_file <- sub("--file=", "", script_args[grep("--file=", script_args)])
+        normalizePath(script_file)
+      }, error = function(e3) {
+        stop("Could not determine path to Copilot.R")
+      })
+    })
+  })
+}
 
+copilot_path <- get_copilot_path()
 app_dir <- dirname(copilot_path)
-
 cat("Copilot path:\n", copilot_path, "\n")
 cat("App directory contents:\n")
 print(list.files(app_dir))
@@ -49,7 +61,3 @@ if (!file.exists(file.path(app_dir, "app.R"))) {
 
 setwd(app_dir)
 shiny::runApp(app_dir)
-
-#setwd("C:/Users/jonas/OneDrive/Desktop/Vis_phos/Copilot Shiny2")
-#shinylive::export(appdir = "web app", destdir = "docs")
-#httpuv::runStaticServer("docs/", port=8008)
