@@ -31,7 +31,23 @@ for (pkg in bioc_pkgs) {
 }
 
 library(shiny)
-setwd(dirname(rstudioapi::getActiveDocumentContext()$path))
+this_file <- function() {
+  cmdArgs <- commandArgs(trailingOnly = FALSE)
+  needle <- "--file="
+  match <- grep(needle, cmdArgs)
+  if (length(match) > 0) {
+    normalizePath(sub(needle, "", cmdArgs[match]))
+  } else if (!is.null(sys.frames()[[1]]$ofile)) {
+    normalizePath(sys.frames()[[1]]$ofile)
+  } else {
+    tryCatch(
+      normalizePath(rstudioapi::getActiveDocumentContext()$path),
+      error = function(e) stop("Cannot determine script path")
+    )
+  }
+}
+
+setwd(dirname(this_file()))
 runApp()
 
 #setwd("C:/Users/jonas/OneDrive/Desktop/Vis_phos/Copilot Shiny2")
