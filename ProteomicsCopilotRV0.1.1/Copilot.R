@@ -6,7 +6,7 @@ all_pkgs <- c(
   "protr", "r3dmol", "KSEAapp", "xtable", "tools", "png",
   "UniprotR", "protti", "shinycssloaders",
   "Biostrings", "GenomicAlignments", "rstudioapi", "seqinr",
-  "openxlsx"
+  "openxlsx", "this.path"
 )
 
 bioc_pkgs <- c("Biostrings", "GenomicAlignments", "protti")
@@ -31,27 +31,6 @@ for (pkg in bioc_pkgs) {
 }
 
 library(shiny)
-
-get_current_script_path <- function() {
-  tryCatch({
-    normalizePath(attr(attr(parent.frame(), "srcref"), "srcfile")$filename)
-  }, error = function(e1) {
-    tryCatch({
-      normalizePath(rstudioapi::getSourceEditorContext()$path)
-    }, error = function(e2) {
-      tryCatch({
-        args <- commandArgs(trailingOnly = FALSE)
-        file_arg <- grep("^--file=", args, value = TRUE)
-        if (length(file_arg) > 0) {
-          normalizePath(sub("^--file=", "", file_arg))
-        } else {
-          stop("Cannot determine the path of the running script")
-        }
-      }, error = function(e3) {
-        stop("Cannot determine the path of the running script")
-      })
-    })
-  })
-}
-
-cat("Current script path:\n", get_current_script_path(), "\n")
+library(this.path)
+setwd(this.path::here())
+runApp()
