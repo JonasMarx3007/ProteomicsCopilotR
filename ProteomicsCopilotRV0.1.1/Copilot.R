@@ -31,24 +31,21 @@ for (pkg in bioc_pkgs) {
 }
 
 library(shiny)
-this_file <- function() {
-  cmdArgs <- commandArgs(trailingOnly = FALSE)
-  needle <- "--file="
-  match <- grep(needle, cmdArgs)
-  if (length(match) > 0) {
-    normalizePath(sub(needle, "", cmdArgs[match]))
-  } else if (!is.null(sys.frames()[[1]]$ofile)) {
-    normalizePath(sys.frames()[[1]]$ofile)
-  } else {
-    tryCatch(
-      normalizePath(rstudioapi::getActiveDocumentContext()$path),
-      error = function(e) stop("Cannot determine script path")
-    )
-  }
+
+copilot_path <- tryCatch(
+  normalizePath(sys.frame(1)$ofile),
+  error = function(e) normalizePath(rstudioapi::getActiveDocumentContext()$path)
+)
+
+app_dir <- dirname(copilot_path)
+
+if (!file.exists(file.path(app_dir, "app.R")) &&
+    !(file.exists(file.path(app_dir, "ui.R")) && file.exists(file.path(app_dir, "server.R")))) {
+  stop("No valid Shiny app found in the same folder as Copilot.R (app.R or ui.R + server.R required).")
 }
 
-setwd(dirname(this_file()))
-runApp()
+setwd(app_dir)
+shiny::runApp(appDir = app_dir)
 
 #setwd("C:/Users/jonas/OneDrive/Desktop/Vis_phos/Copilot Shiny2")
 #shinylive::export(appdir = "web app", destdir = "docs")
