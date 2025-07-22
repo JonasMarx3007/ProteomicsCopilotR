@@ -1,7 +1,7 @@
 library(git2r)
 
 repo_url <- "https://github.com/JonasMarx3007/ProteomicsCopilotR.git"
-local_path <- "C:/Users/Jonas Marx/Desktop/UnnamedProjects/NewCopilotInstall"
+local_path <- "your_path"
 temp_path <- tempfile("copilot_")
 
 extract_version_parts <- function(name) {
