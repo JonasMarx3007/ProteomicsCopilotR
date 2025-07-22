@@ -34,18 +34,21 @@ library(shiny)
 
 copilot_path <- tryCatch(
   normalizePath(sys.frame(1)$ofile),
-  error = function(e) normalizePath(rstudioapi::getActiveDocumentContext()$path)
+  error = function(e) normalizePath(rstudioapi::getSourceEditorContext()$path)
 )
 
 app_dir <- dirname(copilot_path)
 
-if (!file.exists(file.path(app_dir, "app.R")) &&
-    !(file.exists(file.path(app_dir, "ui.R")) && file.exists(file.path(app_dir, "server.R")))) {
-  stop("No valid Shiny app found in the same folder as Copilot.R (app.R or ui.R + server.R required).")
+cat("Copilot path:\n", copilot_path, "\n")
+cat("App directory contents:\n")
+print(list.files(app_dir))
+
+if (!file.exists(file.path(app_dir, "app.R"))) {
+  stop("No app.R found in the same folder as Copilot.R")
 }
 
 setwd(app_dir)
-shiny::runApp(appDir = app_dir)
+shiny::runApp(app_dir)
 
 #setwd("C:/Users/jonas/OneDrive/Desktop/Vis_phos/Copilot Shiny2")
 #shinylive::export(appdir = "web app", destdir = "docs")
