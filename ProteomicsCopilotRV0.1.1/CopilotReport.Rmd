@@ -24,7 +24,7 @@ data_wd <- function(){
   #Replace the line above with your working directory that includes the Data folder
 }
 data_wd()
-log_path = "C:/Users/Jonas Marx/Downloads/log_2025-07-23_3.csv"
+log_path = "C:/Users/Jonas Marx/Downloads/log_2025-07-23_6.csv"
 log = read_csv(log_path)
 #Replace this line with the place where your log file is stored
 
@@ -853,16 +853,29 @@ if (prot_bool) {
 
 ```{r, echo=FALSE, results='asis'}
 if (prot_bool) {
-  if (num_plotsVolc>0){
-    cat(paste0("The data set was filtered for proteins with at least ",logd["FilterNum"]," valid values (not missing and not quantity = 0, 50% valid values) ",logd["FilterCond"],"."))
-  }
-}
-```
+  if (num_plotsVolc > 0) {
+    msg <- ""
 
-```{r, echo=FALSE, results='asis'}
-if (prot_bool) {
-  if (num_plotsVolc>0){
-    cat(paste0("Before performing the t-test, the data set was filtered for proteins with at least ",logd["FilterNum"]," valid values (not missing and not quantity = 0) ",logd["FilterCond"],". All other proteins were discarded from the data set and not evaluated in the statistical analysis. Missing values were imputed from the distribution of all data points in the data set with a downshift of q=",logd["Q-shift"]," and a distribution of SD=",logd["Adj-std"],"."))
+    if ("FilterNum" %in% names(logd) && "FilterCond" %in% names(logd)) {
+      msg <- paste0(
+        "Before performing the t-test, the data set was filtered for proteins with at least ",
+        logd[["FilterNum"]], " valid values (not missing and not quantity = 0) ",
+        logd[["FilterCond"]], ". All other proteins were discarded from the data set and not evaluated in the statistical analysis."
+      )
+    }
+
+    if ("Q-shift" %in% names(logd) && "Adj-std" %in% names(logd)) {
+      msg <- paste0(
+        msg,
+        if (nchar(msg) > 0) " " else "",
+        "Missing values were imputed from the distribution of all data points in the data set with a downshift of q=",
+        logd[["Q-shift"]], " and a distribution of SD=", logd[["Adj-std"]], "."
+      )
+    }
+
+    if (nchar(msg) > 0) {
+      cat(msg)
+    }
   }
 }
 ```
