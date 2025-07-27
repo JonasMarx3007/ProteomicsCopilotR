@@ -29,6 +29,7 @@ library(svglite)
 library(rstudioapi)
 library(seqinr)
 library(openxlsx)
+library(arrow)
 options(warn = -1)
 counter_file <- "www/ressources/logcounter.txt"
 workmode = "funn"
@@ -95,11 +96,11 @@ tabPanel("Data",
                     width = 3,
                     h4("Upload Files"),
                     fileInput("file", "Protein Level Data", 
-                              accept = c(".csv", ".tsv", ".txt", ".xlsx")),
+                              accept = c(".csv", ".tsv", ".txt", ".xlsx", ".parquet")),
                     fileInput("file3", "Phospho Data", 
-                              accept = c(".csv", ".tsv", ".txt", ".xlsx")),
+                              accept = c(".csv", ".tsv", ".txt", ".xlsx", ".parquet")),
                     fileInput("file2", "Full Report", 
-                              accept = c(".csv", ".tsv", ".txt", ".xlsx")),
+                              accept = c(".csv", ".tsv", ".txt", ".xlsx", ".parquet")),
                     hr(),
                     h4("Collapse Options"),
                     radioButtons("collapse_option", "Select Collapse Option:",
@@ -280,6 +281,9 @@ tabPanel("QC Pipeline",
                     hr(),
                     selectInput("level3", "Level:",
                                 choices = c("Protein", "Peptide", "Phosphosite")),
+                    selectInput("type3", "Type:",
+                                choices = c("Normal", "Summary")),  # <-- New selectInput for Type
+                    
                     hr(),
                     h4("Plot Size & Resolution"),
                     numericInput("plotWidth3", "Width (cm):", value = 20),
@@ -989,14 +993,29 @@ tabPanel("Phospho-specific",
             sidebarLayout(
               sidebarPanel(
                 width = 3,
+                
                 actionButton("toggle_id21", "Toggle IDs"),
+                actionButton("toggle_header21", "Toggle Header"),
+                actionButton("toggle_legend21", "Toggle Legend"),
+                
                 hr(),
+                
+                selectInput("type21", "Type:", choices = c("Normal", "Summary")),
+                
+                hr(),
+                
                 h4("Plot Size & Resolution"),
                 numericInput("plotWidth21", "Width (cm):", value = 20),
                 numericInput("plotHeight21", "Height (cm):", value = 10),
                 numericInput("plotDPI21", "DPI:", value = 300),
+                selectInput("plotFormat21", "File Format:",
+                            choices = c("PNG" = "png", "JPG" = "jpg", "SVG" = "svg", "PDF" = "pdf"),
+                            selected = "png"),
+                
                 downloadButton("downloadPhossitePlot", "Download Plot"),
+                
                 hr(),
+                
                 h4("Annotation Text"),
                 selectInput("textPosition21", "Position:", choices = c("Above" = "up", "Below" = "down")),
                 textAreaInput("text21", "Enter text:", value = "", width = '100%', height = '100px'),
@@ -1130,6 +1149,7 @@ server <- function(input, output, session) {
                  tsv = read_tsv(input$file$datapath),
                  txt = read_delim(input$file$datapath, delim = "\t"),
                  xlsx = read_excel(input$file$datapath),
+                 parquet = read_parquet(input$file$datapath),
                  stop("Invalid file type")
     )
     
@@ -1146,6 +1166,7 @@ server <- function(input, output, session) {
                  tsv = read_tsv(input$file2$datapath),
                  txt = read_delim(input$file2$datapath, delim = "\t"),
                  xlsx = read_excel(input$file2$datapath),
+                 parquet = read_parquet(input$file2$datapath),
                  stop("Invalid file type")
     )
     
@@ -1162,6 +1183,7 @@ server <- function(input, output, session) {
                  tsv = read_tsv(input$file3$datapath),
                  txt = read_delim(input$file3$datapath, delim = "\t"),
                  xlsx = read_excel(input$file3$datapath),
+                 parquet = read_parquet(input$file3$datapath),
                  stop("Invalid file type")
     )
     if (input$collapse_option == "not_collapsed"){
@@ -1648,13 +1670,25 @@ server <- function(input, output, session) {
   output$coveragePlot <- renderPlot({
     if (input$level3 == "Protein") {
       req(data(), meta())
-      coverage_plot(data(), meta(), id = id3(), header = header3(), legend = legend3())
+      if (input$type3 == "Summary") {
+        coverage_plot_summary(data(), meta(), id = id3(), header = header3(), legend = legend3())
+      } else {
+        coverage_plot(data(), meta(), id = id3(), header = header3(), legend = legend3())
+      }
     } else if (input$level3 == "Peptide") {
       req(data2(), meta())
-      coverage_plot_pep(data2(), meta(), id = id3(), header = header3(), legend = legend3())
+      if (input$type3 == "Summary") {
+        coverage_plot_summary(data2(), meta(), id = id3(), header = header3(), legend = legend3())
+      } else {
+        coverage_plot_pep(data2(), meta(), id = id3(), header = header3(), legend = legend3())
+      }
     } else if (input$level3 == "Phosphosite") {
       req(data3(), meta2())
-      coverage_plot(data3(), meta2(), id = id3(), header = header3(), legend = legend3())
+      if (input$type3 == "Summary") {
+        coverage_plot_summary(data3(), meta2(), id = id3(), header = header3(), legend = legend3())
+      } else {
+        coverage_plot(data3(), meta2(), id = id3(), header = header3(), legend = legend3())
+      }
     }
   })
   
@@ -1668,19 +1702,29 @@ server <- function(input, output, session) {
       height <- input$plotHeight3
       dpi <- input$plotDPI3
       ext <- input$plotFormat3
-      
       p <- NULL
       if (input$level3 == "Protein") {
         req(data(), meta())
-        p <- coverage_plot(data(), meta(), id = id3(), header = header3(), legend = legend3())
+        if (input$type3 == "Summary") {
+          p <- coverage_plot_summary(data(), meta(), id = id3(), header = header3(), legend = legend3())
+        } else {
+          p <- coverage_plot(data(), meta(), id = id3(), header = header3(), legend = legend3())
+        }
       } else if (input$level3 == "Peptide") {
         req(data2(), meta())
-        p <- coverage_plot_pep(data2(), meta(), id = id3(), header = header3(), legend = legend3())
+        if (input$type3 == "Summary") {
+          p <- coverage_plot_summary(data2(), meta(), id = id3(), header = header3(), legend = legend3())
+        } else {
+          p <- coverage_plot_pep(data2(), meta(), id = id3(), header = header3(), legend = legend3())
+        }
       } else if (input$level3 == "Phosphosite") {
         req(data3(), meta2())
-        p <- coverage_plot(data3(), meta2(), id = id3(), header = header3(), legend = legend3())
+        if (input$type3 == "Summary") {
+          p <- coverage_plot_summary(data3(), meta2(), id = id3(), header = header3(), legend = legend3())
+        } else {
+          p <- coverage_plot(data3(), meta2(), id = id3(), header = header3(), legend = legend3())
+        }
       }
-      
       if (ext %in% c("png", "jpg")) {
         ggsave(file, plot = p, device = ext, width = width, height = height, units = "cm", dpi = dpi)
       } else if (ext == "pdf") {
@@ -1726,7 +1770,6 @@ server <- function(input, output, session) {
                       "Protein" = paste0(suffix, "Protein"),
                       "Peptide" = paste0(suffix, "Peptide"),
                       "Phosphosite" = paste0(suffix, "Phosphosite"))
-    
     value <- df$Select[df$Var == varName]
     updateTextAreaInput(session, "text3", value = if (length(value) > 0) value else "")
   })
@@ -3375,54 +3418,88 @@ server <- function(input, output, session) {
   })
   
 #### Tab21 - Phossite Coverage Plot ####
-  output$PhossiteCoveragePlot <- renderPlot({
-    req(data3(), meta2())
-    phossite_coverage_plot(data3(), meta2())
+  id21 <- reactiveVal(FALSE)
+  header21 <- reactiveVal(TRUE)
+  legend21 <- reactiveVal(TRUE)
+  
+  observeEvent(input$toggle_id21, {
+    id21(!id21())
   })
   
-  observe({
-    df <- const_df()
-    text_up <- ""
-    text_down <- ""
-    
-    if ("text21up" %in% df$Var) {
-      text_up <- df$Select[df$Var == "text21up"]
-    }
-    if ("text21down" %in% df$Var) {
-      text_down <- df$Select[df$Var == "text21down"]
-    }
-    
-    if (input$textPosition21 == "up") {
-      updateTextAreaInput(session, "text21", value = text_up)
+  observeEvent(input$toggle_header21, {
+    header21(!header21())
+  })
+  
+  observeEvent(input$toggle_legend21, {
+    legend21(!legend21())
+  })
+  
+  output$PhossiteCoveragePlot <- renderPlot({
+    req(data3(), meta2())
+    if (input$type21 == "Summary") {
+      phossite_coverage_plot_summary(data3(), meta2(), id = id21(), header = header21(), legend = legend21())
     } else {
-      updateTextAreaInput(session, "text21", value = text_down)
+      phossite_coverage_plot(data3(), meta2(), id = id21(), header = header21(), legend = legend21())
     }
+  })
+  
+  output$downloadPhossitePlot <- downloadHandler(
+    filename = function() {
+      ext <- input$plotFormat21
+      paste("phossite_coverage_plot", Sys.Date(), ".", ext, sep = "")
+    },
+    content = function(file) {
+      width <- input$plotWidth21
+      height <- input$plotHeight21
+      dpi <- input$plotDPI21
+      ext <- input$plotFormat21
+      p <- NULL
+      req(data3(), meta2())
+      if (input$type21 == "Summary") {
+        p <- phossite_coverage_plot_summary(data3(), meta2(), id = id21(), header = header21(), legend = legend21())
+      } else {
+        p <- phossite_coverage_plot(data3(), meta2(), id = id21(), header = header21(), legend = legend21())
+      }
+      if (ext %in% c("png", "jpg")) {
+        ggsave(file, plot = p, device = ext, width = width, height = height, units = "cm", dpi = dpi)
+      } else if (ext == "pdf") {
+        pdf(file, width = width / 2.54, height = height / 2.54)
+        print(p)
+        dev.off()
+      } else if (ext == "svg") {
+        svglite::svglite(file, width = width / 2.54, height = height / 2.54)
+        print(p)
+        dev.off()
+      }
+    }
+  )
+  
+  observe({
+    req(const_df())
+    df <- const_df()
+    suffix <- if (input$textPosition21 == "up") "text21up" else "text21down"
+    varName <- suffix
+    value <- df$Select[df$Var == varName]
+    updateTextAreaInput(session, "text21", value = if (length(value) > 0) value else "")
   })
   
   observeEvent(input$addText21, {
+    req(const_df())
     df <- const_df()
-    
-    if (input$textPosition21 == "up") {
-      df <- df[df$Var != "text21up", ]
-      new_row <- data.frame(Var = "text21up", Select = input$text21, stringsAsFactors = FALSE)
-    } else {
-      df <- df[df$Var != "text21down", ]
-      new_row <- data.frame(Var = "text21down", Select = input$text21, stringsAsFactors = FALSE)
-    }
-    
+    suffix <- if (input$textPosition21 == "up") "text21up" else "text21down"
+    varName <- suffix
+    df <- df[df$Var != varName, ]
+    new_row <- data.frame(Var = varName, Select = input$text21, stringsAsFactors = FALSE)
     const_df(rbind(df, new_row))
     updateTextAreaInput(session, "text21", value = "")
   })
   
   observeEvent(input$deleteText21, {
+    req(const_df())
     df <- const_df()
-    
-    if (input$textPosition21 == "up") {
-      df <- df[df$Var != "text21up", ]
-    } else {
-      df <- df[df$Var != "text21down", ]
-    }
-    
+    suffix <- if (input$textPosition21 == "up") "text21up" else "text21down"
+    varName <- suffix
+    df <- df[df$Var != varName, ]
     const_df(df)
     updateTextAreaInput(session, "text21", value = "")
   })

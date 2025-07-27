@@ -6,7 +6,7 @@ all_pkgs <- c(
   "protr", "r3dmol", "KSEAapp", "xtable", "tools", "png",
   "UniprotR", "protti", "shinycssloaders",
   "Biostrings", "GenomicAlignments", "rstudioapi", "seqinr",
-  "openxlsx", "this.path"
+  "openxlsx", "this.path", "arrow"
 )
 
 bioc_pkgs <- c("Biostrings", "GenomicAlignments", "protti")

@@ -27,6 +27,7 @@ library(KSEAapp)
 library(rstudioapi)
 library(seqinr)
 library(openxlsx)
+library(arrow)
 
 extract_id <- function(sample_name) {
   str_extract(sample_name, "(?<=_)[0-9]+(?=\\.d)")
@@ -726,6 +727,9 @@ corr_plot <- function(data, meta, method=FALSE, id=TRUE, full_range=FALSE) {
 }
 
 rename_cols <- function(df) {
+  if ("Run" %in% names(df)) {
+    names(df)[names(df) == "Run"] <- "File.Name"
+  }
   if ("PG.ProteinNames" %in% names(df)) {
     names(df)[names(df) == "PG.ProteinNames"] <- "ProteinNames"
   }
@@ -804,7 +808,6 @@ rename_cols <- function(df) {
   
   return(df)
 }
-
 
 heatmap_plot <- function(data, meta, id=TRUE) {
   conditions = unique(meta$condition)
@@ -1660,36 +1663,32 @@ impute_values <- function(data, meta, q=0.01, adj_std=1, ret=0, sample_wise=F, s
   }
 }
 
-
 read_data <- function(file) {
   ext <- tools::file_ext(file)
   
-  df <- switch(ext,
-               csv = read_csv(file, show_col_types = FALSE),
-               tsv = read_tsv(file, show_col_types = FALSE),
-               txt = read_delim(file, delim = "\t", show_col_types = FALSE),
-               xlsx = read_excel(file),
-               stop("Invalid file type")
-  )
-  
-  col_spec <- if ("Reverse" %in% names(df)) {
-    cols(Reverse = col_character())
-  } else {
-    cols()
+  if (!ext %in% c("csv", "tsv", "txt", "xlsx", "parquet")) {
+    stop("Invalid file type")
   }
   
   df <- switch(ext,
-               csv = read_csv(file, col_types = col_spec),
-               tsv = read_tsv(file, col_types = col_spec),
-               txt = read_delim(file, delim = "\t", col_types = col_spec),
-               xlsx = read_excel(file),
-               stop("Invalid file type")
+               csv = readr::read_csv(file, show_col_types = FALSE),
+               tsv = readr::read_tsv(file, show_col_types = FALSE),
+               txt = readr::read_delim(file, delim = "\t", show_col_types = FALSE),
+               xlsx = readxl::read_excel(file),
+               parquet = arrow::read_parquet(file)
   )
   
+  if (ext %in% c("csv", "tsv", "txt") && "Reverse" %in% names(df)) {
+    col_spec <- readr::cols(Reverse = readr::col_character())
+    df <- switch(ext,
+                 csv = readr::read_csv(file, col_types = col_spec),
+                 tsv = readr::read_tsv(file, col_types = col_spec),
+                 txt = readr::read_delim(file, delim = "\t", col_types = col_spec)
+    )
+  }
+  
   df <- rename_cols(df)
-  
   rownames(df) <- NULL
-  
   return(df)
 }
 
@@ -1798,12 +1797,12 @@ prepare_tree_data_pv <- function(data) {
   return(data)
 }
 
-phossite_coverage_plot <- function(data, meta, id=FALSE){
+phossite_coverage_plot <- function(data, meta, id = FALSE, header = TRUE, legend = TRUE) {
   conditions <- unique(meta$condition)
   meta$sample <- as.character(meta$sample)
   meta$id <- sapply(meta$sample, extract_id_or_number)
   
-  if (id == TRUE){
+  if (id == TRUE) {
     meta <- meta %>%
       group_by(condition) %>%
       mutate(new_sample = paste0(condition, "_", row_number(), "\n(", id, ")")) %>%
@@ -1833,16 +1832,28 @@ phossite_coverage_plot <- function(data, meta, id=FALSE){
   
   plot_data$sample <- factor(plot_data$sample, levels = meta$new_sample)
   
-  ggplot(plot_data, aes(x = sample, y = count, fill = PTM_localization)) +
+  plot_title <- ""
+  y_label <- "Number"
+  if (header) {
+    plot_title <- "Phosphosites per sample"
+    y_label <- "Number of phosphosites"
+  }
+  
+  p <- ggplot(plot_data, aes(x = sample, y = count, fill = PTM_localization)) +
     geom_bar(stat = "identity") +
     theme_minimal() +
-    theme(axis.text.x = element_text(angle = 90, hjust = 1)) +
     labs(
-      title = "Phosphosites per Sample",
+      title = plot_title,
       x = "Sample",
-      y = "Number of Phosphosites",
+      y = y_label,
       fill = "Phosphosite"
+    ) +
+    theme(
+      axis.text.x = element_text(angle = 90, hjust = 1, size = 5),
+      legend.position = if (legend) "right" else "none"
     )
+  
+  print(p)
 }
 
 heatmap_plot_nmv <- function(data, meta, id=TRUE) {
@@ -2281,7 +2292,7 @@ init_colors <- function(color) {
   }
 }
 
-coverage_plot_summary <- function(data, meta, id=TRUE, color_package=TRUE) {
+coverage_plot_summary <- function(data, meta, id = TRUE, color_package = TRUE, header = TRUE, legend = TRUE) {
   data[data == 0] <- NA
   conditions <- unique(meta$condition)
   meta$sample <- as.character(meta$sample)
@@ -2303,7 +2314,6 @@ coverage_plot_summary <- function(data, meta, id=TRUE, color_package=TRUE) {
   colnames(data) <- ifelse(colnames(data) %in% meta$sample, rename_vector[colnames(data)], colnames(data))
   annotated_columns <- meta$new_sample
   data_filtered <- data[, annotated_columns, drop = FALSE]
-  
   data_filtered[!is.na(data_filtered)] <- 1
   data_melted <- melt(data_filtered, variable.name = "Sample", value.name = "Value")
   data_annotated <- merge(data_melted, meta, by.x = "Sample", by.y = "new_sample")
@@ -2313,7 +2323,9 @@ coverage_plot_summary <- function(data, meta, id=TRUE, color_package=TRUE) {
   data_annotated_unique <- data_annotated %>%
     group_by(Sample) %>%
     summarize(Value = sum(Value, na.rm = TRUE),
-              condition = first(condition))
+              condition = dplyr::first(as.character(condition)))
+  
+  data_annotated_unique$condition <- factor(data_annotated_unique$condition, levels = conditions)
   
   summary_data <- data_annotated_unique %>%
     group_by(condition) %>%
@@ -2327,6 +2339,18 @@ coverage_plot_summary <- function(data, meta, id=TRUE, color_package=TRUE) {
     }
   }
   
+  plot_title <- ""
+  y_label <- "Number"
+  if (header) {
+    if ("ProteinNames" %in% colnames(data)) {
+      plot_title <- "Proteins per sample"
+      y_label <- "Number of proteins"
+    } else if ("PTM_Collapse_key" %in% colnames(data)) {
+      plot_title <- "Phosphosites per sample"
+      y_label <- "Number of phosphosites"
+    }
+  }
+  
   if ("ProteinNames" %in% colnames(data)) {
     p <- ggplot() +
       geom_bar(data = summary_data, aes(x = condition, y = mean_value, fill = condition),
@@ -2337,9 +2361,10 @@ coverage_plot_summary <- function(data, meta, id=TRUE, color_package=TRUE) {
       geom_point(data = data_annotated_unique, aes(x = condition, y = Value),
                  position = position_jitter(width = 0.2), size = 2, alpha = 0.7) +
       theme_minimal() +
-      labs(title = "Proteins per sample",
-           x = "Condition", y = "Number of proteins", fill = "Condition") +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+      labs(title = plot_title,
+           x = "Condition", y = y_label, fill = "Condition") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            legend.position = if (legend) "right" else "none") +
       geom_hline(yintercept = length(data$ProteinNames), linetype = "dashed", color = "red")
   } else if ("PTM_Collapse_key" %in% colnames(data)) {
     p <- ggplot() +
@@ -2351,25 +2376,26 @@ coverage_plot_summary <- function(data, meta, id=TRUE, color_package=TRUE) {
       geom_point(data = data_annotated_unique, aes(x = condition, y = Value),
                  position = position_jitter(width = 0.2), size = 2, alpha = 0.7) +
       theme_minimal() +
-      labs(title = "Phosphosites per sample",
-           x = "Condition", y = "Number of phosphosites", fill = "Condition") +
-      theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+      labs(title = plot_title,
+           x = "Condition", y = y_label, fill = "Condition") +
+      theme(axis.text.x = element_text(angle = 45, hjust = 1),
+            legend.position = if (legend) "right" else "none") +
       geom_hline(yintercept = length(data$PTM_Collapse_key), linetype = "dashed", color = "red")
   }
   
   if (exists("plot_colors")) {
     p <- p + scale_fill_manual(values = plot_colors)
   }
+  
   print(p)
 }
 
-
-phossite_coverage_plot_summary <- function(data, meta, id=FALSE){
+phossite_coverage_plot_summary <- function(data, meta, id = FALSE, header = TRUE, legend = TRUE) {
   conditions <- unique(meta$condition)
   meta$sample <- as.character(meta$sample)
   meta$id <- sapply(meta$sample, extract_id_or_number)
   
-  if (id == TRUE){
+  if (id == TRUE) {
     meta <- meta %>%
       group_by(condition) %>%
       mutate(new_sample = paste0(condition, "_", row_number(), "\n(", id, ")")) %>%
@@ -2398,17 +2424,24 @@ phossite_coverage_plot_summary <- function(data, meta, id=FALSE){
   
   summarized_plot_data <- plot_data %>%
     mutate(condition = sub("_.*", "", sample)) %>%
-    group_by(condition, PTM_localization) %>%    
+    group_by(condition, PTM_localization) %>%
     summarize(
-      mean_count = mean(count, na.rm = TRUE),      
-      sd_count = sd(count, na.rm = TRUE),          
-      .groups = "drop"                           
+      mean_count = mean(count, na.rm = TRUE),
+      sd_count = sd(count, na.rm = TRUE),
+      .groups = "drop"
     )
   
   plot_data <- plot_data %>%
     mutate(condition = sub("_.*", "", sample))
   
-  ggplot() +
+  plot_title <- ""
+  y_label <- "Number"
+  if (header) {
+    plot_title <- "Phosphosites per condition"
+    y_label <- "Number of phosphosites"
+  }
+  
+  p <- ggplot() +
     geom_bar(
       data = summarized_plot_data,
       aes(x = condition, y = mean_count, fill = PTM_localization),
@@ -2427,15 +2460,17 @@ phossite_coverage_plot_summary <- function(data, meta, id=FALSE){
     ) +
     theme_minimal() +
     labs(
-      title = "Phosphosites per condition",
+      title = plot_title,
       x = "Condition",
-      y = "Number of phosphosites",
+      y = y_label,
       fill = "Phosphosite"
     ) +
     theme(
       axis.text.x = element_text(angle = 45, hjust = 1),
-      legend.position = "right" 
+      legend.position = if (legend) "right" else "none"
     )
+  
+  print(p)
 }
 
 volcano_plot <- function(data, meta, condition1, condition2, in_pval = 0.05, in_log2fc = 1,
